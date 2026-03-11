@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"todo_API/models"
-	"todo_API/repositories"
+	"todo_API/services"
 )
 
 func CreateTask(c *gin.Context) {
@@ -19,21 +19,25 @@ func CreateTask(c *gin.Context) {
 		return
 	}
 
-
-	err := repositories.CreateTask(task) 
+	err := services.CreateTask(&task)
 	if err != nil {
-		slog.Error("Erro ao salvar no banco", "error", err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+
+		slog.Error("Erro ao criar tarefa",
+			"title", task.Title,
+			"error", err.Error(),
+		)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
+	slog.Info("Tarefa criada com sucesso", "id", task.ID)
 	c.JSON(http.StatusCreated, task)
 }
 
 func GetTaskByID(c *gin.Context) {
 	id := c.Param("id")
 
-	task, err := repositories.GetTaskByID(id)
+	task, err := services.GetTaskByID(id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "task not found"})
 		return
@@ -46,7 +50,7 @@ func GetTasks(c *gin.Context) {
 	status := c.Query("status")
 	priority := c.Query("priority")
 
-	tasks, err := repositories.GetTasks(status, priority)
+	tasks, err := services.GetTasks(status, priority)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -64,21 +68,25 @@ func UpdateTask(c *gin.Context) {
 		return
 	}
 
-	err := repositories.UpdateTask(id, taskInput)
+	updatedTask, err := services.UpdateTask(id, taskInput)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "task not found"})
+		if err.Error() == "task not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		}
 		return
 	}
 
-	c.JSON(http.StatusOK, taskInput)
+	c.JSON(http.StatusOK, updatedTask)
 }
 
 func DeleteTask(c *gin.Context) {
 	id := c.Param("id")
 
-	err := repositories.DeleteTask(id)
+	err := services.DeleteTask(id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "task not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
 
